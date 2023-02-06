@@ -3,7 +3,7 @@ package com.example.concurrency;
 import static org.assertj.core.api.AssertionsForClassTypes.*;
 import com.example.concurrency.domain.Stock;
 import com.example.concurrency.repository.StockRepository;
-import com.example.concurrency.service.StockService;
+import com.example.concurrency.service.PessimisticLockStockService;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -21,7 +21,7 @@ class ConcurrencyApplicationTests {
 	StockRepository repository;
 
 	@Autowired
-	StockService service;
+	PessimisticLockStockService service;
 
 	@BeforeEach
 	void beforeEach(){

@@ -2,6 +2,7 @@ package com.example.concurrency;
 
 import static org.assertj.core.api.AssertionsForClassTypes.*;
 import com.example.concurrency.domain.Stock;
+import com.example.concurrency.facade.NamedLockStockFacade;
 import com.example.concurrency.facade.OptimisticLockStockFacade;
 import com.example.concurrency.repository.StockRepository;
 import com.example.concurrency.service.PessimisticLockStockService;
@@ -30,6 +31,9 @@ class ConcurrencyApplicationTests {
 
 	@Autowired
 	OptimisticLockStockFacade optimisticLockStockFacade;
+
+	@Autowired
+	NamedLockStockFacade namedLockStockFacade;
 
 	@BeforeEach
 	void beforeEach() {
@@ -61,7 +65,7 @@ class ConcurrencyApplicationTests {
 	void decreaseConcurrency() throws InterruptedException {
 		// Given
 		int threadNums = 100;
-		ExecutorService executorService = Executors.newFixedThreadPool(threadNums);
+		ExecutorService executorService = Executors.newFixedThreadPool(32);
 		CountDownLatch latch = new CountDownLatch(threadNums);
 		// 다른 쓰레드에서 실행 중인 작업이 종료 될 때 까지 기다리게 도움을 줌
 
@@ -87,7 +91,7 @@ class ConcurrencyApplicationTests {
 	void decreaseConcurrencyWithPessimisticLock() throws InterruptedException {
 		// Given
 		int threadNums = 100;
-		ExecutorService executorService = Executors.newFixedThreadPool(threadNums);
+		ExecutorService executorService = Executors.newFixedThreadPool(32);
 		CountDownLatch latch = new CountDownLatch(threadNums);
 
 		// When
@@ -112,7 +116,7 @@ class ConcurrencyApplicationTests {
 	void decreaseConcurrencyWithOptimisticLock() throws InterruptedException {
 		// Given
 		int threadNums = 100;
-		ExecutorService executorService = Executors.newFixedThreadPool(threadNums);
+		ExecutorService executorService = Executors.newFixedThreadPool(32);
 		CountDownLatch latch = new CountDownLatch(threadNums);
 
 		// When
@@ -122,6 +126,31 @@ class ConcurrencyApplicationTests {
 					optimisticLockStockFacade.decrease(1L, 1L);
 				} catch (InterruptedException e) {
 					throw new RuntimeException("");
+				} finally {
+					latch.countDown();
+				}
+			});
+		}
+		latch.await();
+		Stock stock = repository.findById(1L).orElseThrow(EntityNotFoundException::new);
+
+		// Then
+		assertThat(stock.getQuantity()).isEqualTo(0L);
+	}
+
+	@Test
+	@DisplayName("Named 락을 사용하면서 동시에 100개 감소")
+	void decreaseConcurrencyWithNamedcLock() throws InterruptedException {
+		// Given
+		int threadNums = 100;
+		ExecutorService executorService = Executors.newFixedThreadPool(32);
+		CountDownLatch latch = new CountDownLatch(threadNums);
+
+		// When
+		for (int i = 0; i < threadNums; i++) {
+			executorService.submit(() -> {
+				try {
+					namedLockStockFacade.decrease(1L, 1L);
 				} finally {
 					latch.countDown();
 				}

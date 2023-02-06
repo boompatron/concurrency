@@ -5,6 +5,7 @@ import com.example.concurrency.domain.Stock;
 import com.example.concurrency.facade.LettuceLockStockFacade;
 import com.example.concurrency.facade.NamedLockStockFacade;
 import com.example.concurrency.facade.OptimisticLockStockFacade;
+import com.example.concurrency.facade.RedissonLockStockFacade;
 import com.example.concurrency.repository.StockRepository;
 import com.example.concurrency.service.PessimisticLockStockService;
 import com.example.concurrency.service.StockService;
@@ -39,6 +40,9 @@ class ConcurrencyApplicationTests {
 
 	@Autowired
 	LettuceLockStockFacade lettuceLockStockFacade;
+
+	@Autowired
+	RedissonLockStockFacade redissonLockStockFacade;
 
 	@BeforeEach
 	void beforeEach() {
@@ -182,6 +186,33 @@ class ConcurrencyApplicationTests {
 					lettuceLockStockFacade.decrease(1L, 1L);
 				} catch (InterruptedException e) {
 					throw new RuntimeException(e);
+				} finally {
+					latch.countDown();
+				}
+			});
+		}
+
+		latch.await();
+
+		Stock stock = stockRepository.findById(1L).orElseThrow();
+
+		// Then
+		assertThat(stock.getQuantity()).isEqualTo(0L);
+	}
+
+	@Test
+	@DisplayName("Redisson 락을 사용하면서 동시에 100개 감소")
+	void decreaseConcurrencyWithRedissonLock() throws InterruptedException {
+		// Given
+		int threadCount = 100;
+		ExecutorService executorService = Executors.newFixedThreadPool(32);
+		CountDownLatch latch = new CountDownLatch(threadCount);
+
+		// When
+		for (int i = 0; i < threadCount; i++) {
+			executorService.submit(() -> {
+				try {
+					redissonLockStockFacade.decrease(1L, 1L);
 				} finally {
 					latch.countDown();
 				}

@@ -1,5 +1,6 @@
 package com.example.concurrency;
 
+import static org.assertj.core.api.AssertionsForClassTypes.*;
 import com.example.concurrency.domain.Stock;
 import com.example.concurrency.repository.StockRepository;
 import com.example.concurrency.service.StockService;
@@ -7,13 +8,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import javax.persistence.EntityNotFoundException;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import static org.assertj.core.api.AssertionsForClassTypes.*;
 
 @SpringBootTest
 class ConcurrencyApplicationTests {

@@ -2,6 +2,7 @@ package com.example.concurrency;
 
 import static org.assertj.core.api.AssertionsForClassTypes.*;
 import com.example.concurrency.domain.Stock;
+import com.example.concurrency.facade.LettuceLockStockFacade;
 import com.example.concurrency.facade.NamedLockStockFacade;
 import com.example.concurrency.facade.OptimisticLockStockFacade;
 import com.example.concurrency.repository.StockRepository;
@@ -11,6 +12,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import javax.persistence.EntityNotFoundException;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,7 +23,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 class ConcurrencyApplicationTests {
 
 	@Autowired
-	StockRepository repository;
+	StockRepository stockRepository;
 
 	@Autowired
 	StockService stockService;
@@ -35,17 +37,19 @@ class ConcurrencyApplicationTests {
 	@Autowired
 	NamedLockStockFacade namedLockStockFacade;
 
+	@Autowired
+	LettuceLockStockFacade lettuceLockStockFacade;
+
 	@BeforeEach
 	void beforeEach() {
-		repository.deleteAll();
 		Stock stock = Stock.builder().productId(1L).quantity(100L).build();
-		repository.save(stock);
+		stockRepository.saveAndFlush(stock);
 	}
 
-	// @AfterEach
-	// void afterEach(){
-	// 	repository.deleteAll();
-	// }
+	@AfterEach
+	void afterEach() {
+		stockRepository.deleteAll();
+	}
 
 	@Test
 	@DisplayName("재고 감소")
@@ -54,7 +58,7 @@ class ConcurrencyApplicationTests {
 
 		// When
 		stockService.decrease(1L, 1L);
-		Stock stock = repository.findById(1L).orElseThrow(EntityNotFoundException::new);
+		Stock stock = stockRepository.findById(1L).orElseThrow(EntityNotFoundException::new);
 
 		// Then
 		assertThat(stock.getQuantity()).isEqualTo(99L);
@@ -80,7 +84,7 @@ class ConcurrencyApplicationTests {
 			});
 		}
 		latch.await();
-		Stock stock = repository.findById(1L).orElseThrow(EntityNotFoundException::new);
+		Stock stock = stockRepository.findById(1L).orElseThrow(EntityNotFoundException::new);
 
 		// Then
 		assertThat(stock.getQuantity()).isEqualTo(0L);
@@ -105,7 +109,7 @@ class ConcurrencyApplicationTests {
 			});
 		}
 		latch.await();
-		Stock stock = repository.findById(1L).orElseThrow(EntityNotFoundException::new);
+		Stock stock = stockRepository.findById(1L).orElseThrow(EntityNotFoundException::new);
 
 		// Then
 		assertThat(stock.getQuantity()).isEqualTo(0L);
@@ -132,7 +136,7 @@ class ConcurrencyApplicationTests {
 			});
 		}
 		latch.await();
-		Stock stock = repository.findById(1L).orElseThrow(EntityNotFoundException::new);
+		Stock stock = stockRepository.findById(1L).orElseThrow(EntityNotFoundException::new);
 
 		// Then
 		assertThat(stock.getQuantity()).isEqualTo(0L);
@@ -157,7 +161,36 @@ class ConcurrencyApplicationTests {
 			});
 		}
 		latch.await();
-		Stock stock = repository.findById(1L).orElseThrow(EntityNotFoundException::new);
+		Stock stock = stockRepository.findById(1L).orElseThrow(EntityNotFoundException::new);
+
+		// Then
+		assertThat(stock.getQuantity()).isEqualTo(0L);
+	}
+
+	@Test
+	@DisplayName("Redis Lettuce 락을 사용하면서 동시에 100개 감소")
+	void decreaseConcurrencyWithRedisLettuceLock() throws InterruptedException {
+		// Given
+		int threadCount = 100;
+		ExecutorService executorService = Executors.newFixedThreadPool(32);
+		CountDownLatch latch = new CountDownLatch(threadCount);
+
+		// When
+		for (int i = 0; i < threadCount; i++) {
+			executorService.submit(() -> {
+				try {
+					lettuceLockStockFacade.decrease(1L, 1L);
+				} catch (InterruptedException e) {
+					throw new RuntimeException(e);
+				} finally {
+					latch.countDown();
+				}
+			});
+		}
+
+		latch.await();
+
+		Stock stock = stockRepository.findById(1L).orElseThrow();
 
 		// Then
 		assertThat(stock.getQuantity()).isEqualTo(0L);
